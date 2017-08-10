@@ -2,13 +2,15 @@
 #include <tfhe/tfhe.h>
 #include <tfhe/tfhe_io.h>
 
-#define TAPESIZE (32)
-#define INSTRSIZE (8)
+#define TAPESIZE (8)
+#define INSTRSIZE (4)
+#define STATE_SIZE (8)
+#define SYMBOL_SIZE (8)
 
-#define CURST_SIZE      (16)
-#define CURSYM_SIZE     (16)
-#define NEWST_SIZE      (16)
-#define NEWSYM_SIZE     (16)
+#define CURST_SIZE      (STATE_SIZE)
+#define CURSYM_SIZE     (SYMBOL_SIZE)
+#define NEWST_SIZE      (STATE_SIZE)
+#define NEWSYM_SIZE     (SYMBOL_SIZE)
 #define STCHANGED_SIZE  ( 1)
 #define SYMCHANGED_SIZE ( 1)
 #define DIR_SIZE        ( 2)
@@ -27,8 +29,8 @@
   #error WTF
 #endif
 
-typedef uint16_t symbol_t;
-typedef uint16_t state_t;
+typedef uint8_t symbol_t;
+typedef uint8_t state_t;
 typedef enum { STATIONARY, LEFT, RIGHT } dir_t;
 typedef struct {
   state_t curSt   : CURST_SIZE;

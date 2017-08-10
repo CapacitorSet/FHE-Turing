@@ -1,13 +1,15 @@
 #include "turing.h"
 #include <stdio.h>
 
+int numGates = 0;
+
 // result is a bit, high if a == b, low otherwise
 void equals(LweSample *result, const LweSample *a, const LweSample *b,
             const int nb_bits, const TFheGateBootstrappingCloudKeySet *bk) {
   LweSample *tmp = new_gate_bootstrapping_ciphertext_array(1, bk->params);
 
   // result = true;
-  bootsCONSTANT(&result[0], 1, bk);
+  bootsCONSTANT(&result[0], 1, bk), numGates++;
 
   /* for (i < nb_bits) {
    *   tmp = (a[i] == b[i]); // xnor
@@ -15,9 +17,11 @@ void equals(LweSample *result, const LweSample *a, const LweSample *b,
    * }
    */
   for (int i = 0; i < nb_bits; i++) {
-    bootsXNOR(&tmp[0], &a[i], &b[i], bk);
-    bootsAND(&result[0], &result[0], &tmp[0], bk);
+    bootsXNOR(&tmp[0], &a[i], &b[i], bk), numGates++;
+    bootsAND(&result[0], &result[0], &tmp[0], bk), numGates++;
   }
+
+  delete_gate_bootstrapping_ciphertext_array(1, tmp);
 }
 
 // target = source if trigger[0] is high; target = target otherwise
@@ -29,7 +33,7 @@ void conditionalCopy(LweSample *target, LweSample *trigger, LweSample *source,
    * }
    */
   for (int i = 0; i < nb_bits; i++)
-    bootsMUX(&target[i], &trigger[0], &source[i], &target[i], bk);
+    bootsMUX(&target[i], &trigger[0], &source[i], &target[i], bk), numGates++;
 }
 
 int main() {
@@ -42,14 +46,10 @@ int main() {
   // if necessary, the params are inside the key
   const TFheGateBootstrappingParameterSet *params = bk->params;
 
-  // read the 2x16 ciphertexts
-  LweSample *ciphertext1 = new_gate_bootstrapping_ciphertext_array(16, params);
-  LweSample *ciphertext2 = new_gate_bootstrapping_ciphertext_array(16, params);
-
-  LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(16, params);
+  LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
   LweSample *ciphertape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++)
-    ciphertape[i] = new_gate_bootstrapping_ciphertext_array(16, params);
+    ciphertape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
   LweSample *cipherinstr_curSt[INSTRSIZE];
   LweSample *cipherinstr_curSym[INSTRSIZE];
   LweSample *cipherinstr_newSt[INSTRSIZE];
@@ -74,13 +74,10 @@ int main() {
         new_gate_bootstrapping_ciphertext_array(DIR_SIZE, params);
   }
 
-  // reads the 2x16 ciphertexts from the cloud file
   FILE *cloud_data = fopen("cloud.data", "rb");
-  importFromFile(cloud_data, ciphertext1, 16, params);
-  importFromFile(cloud_data, ciphertext2, 16, params);
-  importFromFile(cloud_data, cipherstate, 16, params);
+  importFromFile(cloud_data, cipherstate, STATE_SIZE, params);
   for (int i = 0; i < TAPESIZE; i++)
-    importFromFile(cloud_data, ciphertape[i], 16, params);
+    importFromFile(cloud_data, ciphertape[i], SYMBOL_SIZE, params);
   for (int i = 0; i < INSTRSIZE; i++) {
     importFromFile(cloud_data, cipherinstr_curSt[i], CURST_SIZE, params);
     importFromFile(cloud_data, cipherinstr_curSym[i], CURSYM_SIZE, params);
@@ -94,44 +91,48 @@ int main() {
   }
   fclose(cloud_data);
 
-  // do some operations on the ciphertexts: here, we will compute the
-  // minimum of the two
-  LweSample *result = new_gate_bootstrapping_ciphertext_array(16, params);
-
   LweSample *doesStateMatch =
       new_gate_bootstrapping_ciphertext_array(1, params);
-  equals(doesStateMatch, cipherstate, cipherinstr_curSt[0], 16, bk);
+  equals(doesStateMatch, cipherstate, cipherinstr_curSt[0], STATE_SIZE, bk);
   LweSample *doesSymbolMatch =
       new_gate_bootstrapping_ciphertext_array(1, params);
-  equals(doesSymbolMatch, ciphertape[0], cipherinstr_curSym[0], 16, bk);
+  equals(doesSymbolMatch, ciphertape[0], cipherinstr_curSym[0], SYMBOL_SIZE, bk);
 
   LweSample *isSuitable =
       new_gate_bootstrapping_ciphertext_array(1, params);
-  bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk);
+  bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk), numGates++;
 
   // nota: tenere una variabile currentSymbol
   // aggiornarla a ogni loop, scorrendo il nastro e facendo l'AND tra la sua posizione e cipherpos
 
   // Copy only if isSuitable and stChanged
-  bootsAND(isSuitable, isSuitable, cipherinstr_stChanged[0], bk);
-  conditionalCopy(cipherstate, isSuitable, cipherinstr_newSt[0], 16, bk);
+  LweSample *mustCopyState =
+      new_gate_bootstrapping_ciphertext_array(1, params);
+  bootsAND(mustCopyState, isSuitable, cipherinstr_stChanged[0], bk), numGates++;
+  conditionalCopy(cipherstate, mustCopyState, cipherinstr_newSt[0], STATE_SIZE, bk);
+
+  // Copy only if isSuitable and stChanged
+  LweSample *mustCopySymbol =
+      new_gate_bootstrapping_ciphertext_array(1, params);
+  bootsAND(mustCopySymbol, isSuitable, cipherinstr_symChanged[0], bk), numGates++;
+  conditionalCopy(ciphertape[0], mustCopySymbol, cipherinstr_newSym[0], STATE_SIZE, bk);
   // cipherstate = cipherinstr_newSt[0];
 
   // export the 32 ciphertexts to a file (for the cloud)
   FILE *answer_data = fopen("answer.data", "wb");
-  exportToFile(answer_data, result, 16, params);
-  exportToFile(answer_data, cipherstate, 16, params);
+  exportToFile(answer_data, cipherstate, STATE_SIZE, params);
   for (int i = 0; i < TAPESIZE; i++)
-    exportToFile(answer_data, ciphertape[i], 16, params);
+    exportToFile(answer_data, ciphertape[i], SYMBOL_SIZE, params);
   for (int i = 0; i < INSTRSIZE; i++) {
     // exportToFile(answer_data, cipherinstr[i], INSTRBITLEN, params);
   }
   fclose(answer_data);
 
   // clean up all pointers
-  delete_gate_bootstrapping_ciphertext_array(16, result);
-  delete_gate_bootstrapping_ciphertext_array(16, ciphertext1);
-  delete_gate_bootstrapping_ciphertext_array(16, ciphertext2);
-  delete_gate_bootstrapping_ciphertext_array(16, cipherstate);
+  delete_gate_bootstrapping_ciphertext_array(STATE_SIZE, cipherstate);
+  for (int i = 0; i < TAPESIZE; i++)
+    delete_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, ciphertape[i]);
   delete_gate_bootstrapping_cloud_keyset(bk);
+
+  printf("%d gates computed.\n", numGates);
 }

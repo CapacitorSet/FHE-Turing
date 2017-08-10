@@ -1,15 +1,15 @@
 #include "turing.h"
 #include <stdio.h>
 
-void setCipherToZero(LweSample *cipher,
-                     TFheGateBootstrappingSecretKeySet *key) {
-  for (int i = 0; i < 16; i++)
-    bootsSymEncrypt(&cipher[i], 0, key);
+void setStateFromPlain(LweSample *cipher, state_t plain,
+                        TFheGateBootstrappingSecretKeySet *key) {
+  for (int i = 0; i < STATE_SIZE; i++)
+    bootsSymEncrypt(&cipher[i], (plain >> i) & 1, key);
 }
 
-void setCipherFromPlain(LweSample *cipher, uint16_t plain,
+void setSymbolFromPlain(LweSample *cipher, symbol_t plain,
                         TFheGateBootstrappingSecretKeySet *key) {
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < SYMBOL_SIZE; i++)
     bootsSymEncrypt(&cipher[i], (plain >> i) & 1, key);
 }
 
@@ -69,8 +69,8 @@ int main() {
   printf("Initializing plain state...\n");
   state_t plainstate = 'g';
   printf("Initializing cipher state...\n");
-  LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(16, params);
-  setCipherFromPlain(cipherstate, plainstate, key);
+  LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
+  setStateFromPlain(cipherstate, plainstate, key);
 
   printf("Initializing plain tape...\n");
   symbol_t plaintape[TAPESIZE];
@@ -81,46 +81,21 @@ int main() {
   printf("Initializing cipher tape...\n");
   LweSample *ciphertape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++) {
-    ciphertape[i] = new_gate_bootstrapping_ciphertext_array(16, params);
-    setCipherFromPlain(ciphertape[i], plaintape[i], key);
+    ciphertape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
+    setSymbolFromPlain(ciphertape[i], plaintape[i], key);
   }
 
-  // generate encrypt the 16 bits of 2017
-  int16_t plaintext1 = 2017;
-  printf("Encrypting %d...\n", plaintext1);
-  LweSample *ciphertext1 = new_gate_bootstrapping_ciphertext_array(16, params);
-  for (int i = 0; i < 16; i++) {
-    bootsSymEncrypt(&ciphertext1[i], (plaintext1 >> i) & 1, key);
-  }
-
-  // generate encrypt the 16 bits of 42
-  int16_t plaintext2 = 42;
-  printf("Encrypting %d...\n", plaintext2);
-  LweSample *ciphertext2 = new_gate_bootstrapping_ciphertext_array(16, params);
-  for (int i = 0; i < 16; i++) {
-    bootsSymEncrypt(&ciphertext2[i], (plaintext2 >> i) & 1, key);
-  }
-
-  printf("Hi there! Today, I will ask the cloud what is the minimum between %d "
-         "and %d\n",
-         plaintext1, plaintext2);
-
-  // export the 2x16 ciphertexts to a file (for the cloud)
   FILE *cloud_data = fopen("cloud.data", "wb");
-  exportToFile(cloud_data, ciphertext1, 16, params);
-  exportToFile(cloud_data, ciphertext2, 16, params);
 
-  exportToFile(cloud_data, cipherstate, 16, params);
+  exportToFile(cloud_data, cipherstate, STATE_SIZE, params);
   for (int i = 0; i < TAPESIZE; i++)
-    exportToFile(cloud_data, ciphertape[i], 16, params);
+    exportToFile(cloud_data, ciphertape[i], SYMBOL_SIZE, params);
   for (int i = 0; i < INSTRSIZE; i++)
     exportToFile(cloud_data, cipherinstr[i], INSTRBITLEN, params);
   fclose(cloud_data);
 
   // clean up all pointers
-  delete_gate_bootstrapping_ciphertext_array(16, ciphertext1);
-  delete_gate_bootstrapping_ciphertext_array(16, ciphertext2);
-  delete_gate_bootstrapping_ciphertext_array(16, cipherstate);
+  delete_gate_bootstrapping_ciphertext_array(STATE_SIZE, cipherstate);
 
   // clean up all pointers
   delete_gate_bootstrapping_secret_keyset(key);
