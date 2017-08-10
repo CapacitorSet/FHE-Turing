@@ -3,7 +3,7 @@
 #include <tfhe/tfhe_io.h>
 
 #define TAPESIZE (8)
-#define INSTRSIZE (4)
+#define INSTRSIZE (2)
 #define STATE_SIZE (8)
 #define SYMBOL_SIZE (8)
 

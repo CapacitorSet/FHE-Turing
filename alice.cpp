@@ -51,6 +51,13 @@ int main() {
                    .stChanged = true,
                    .symChanged = true,
                    .dir = STATIONARY};
+  plaininstr[1] = {.curSt = 'b',
+                   .curSym = 'x',
+                   .newSt = 'w',
+                   .newSym = 'h',
+                   .stChanged = true,
+                   .symChanged = true,
+                   .dir = STATIONARY};
   for (int j = 0; j < INSTRBITLEN; j++)
     printf("%d", getNthBitOfInstr(plaininstr[0], j));
   printf("\n");

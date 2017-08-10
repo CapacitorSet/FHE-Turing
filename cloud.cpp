@@ -36,6 +36,17 @@ void conditionalCopy(LweSample *target, LweSample *trigger, LweSample *source,
     bootsMUX(&target[i], &trigger[0], &source[i], &target[i], bk), numGates++;
 }
 
+// target = source
+void bitwiseCopy(LweSample *target, LweSample *source, const int nb_bits,
+                 const TFheGateBootstrappingCloudKeySet *bk) {
+  /* for (i < nb_bits) {
+   *   target[i] &= trigger ? source[i] : target[i];
+   * }
+   */
+  for (int i = 0; i < nb_bits; i++)
+    bootsCOPY(&target[i], &source[i], bk);
+}
+
 int main() {
   // reads the cloud key from file
   FILE *cloud_key = fopen("cloud.key", "rb");
@@ -91,32 +102,48 @@ int main() {
   }
   fclose(cloud_data);
 
-  LweSample *doesStateMatch =
-      new_gate_bootstrapping_ciphertext_array(1, params);
-  equals(doesStateMatch, cipherstate, cipherinstr_curSt[0], STATE_SIZE, bk);
-  LweSample *doesSymbolMatch =
-      new_gate_bootstrapping_ciphertext_array(1, params);
-  equals(doesSymbolMatch, ciphertape[0], cipherinstr_curSym[0], SYMBOL_SIZE, bk);
+  LweSample *stateBuffer = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
+  bitwiseCopy(stateBuffer, cipherstate, STATE_SIZE, bk);
+  LweSample *symbolBuffer = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
+  bitwiseCopy(symbolBuffer, ciphertape[0], SYMBOL_SIZE, bk);
+  for (int iteration = 0; iteration < 2; iteration++) {
+    printf("Iteration %d\n", iteration);
+    for (int i = 0; i < INSTRSIZE; i++) {
+      LweSample *doesStateMatch =
+          new_gate_bootstrapping_ciphertext_array(1, params);
+      equals(doesStateMatch, stateBuffer, cipherinstr_curSt[i], STATE_SIZE, bk);
+      LweSample *doesSymbolMatch =
+          new_gate_bootstrapping_ciphertext_array(1, params);
+      equals(doesSymbolMatch, symbolBuffer, cipherinstr_curSym[i], SYMBOL_SIZE, bk);
 
-  LweSample *isSuitable =
-      new_gate_bootstrapping_ciphertext_array(1, params);
-  bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk), numGates++;
+      LweSample *isSuitable =
+          new_gate_bootstrapping_ciphertext_array(1, params);
+      bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk), numGates++;
 
-  // nota: tenere una variabile currentSymbol
-  // aggiornarla a ogni loop, scorrendo il nastro e facendo l'AND tra la sua posizione e cipherpos
+      // nota: tenere una variabile currentSymbol
+      // aggiornarla a ogni loop, scorrendo il nastro e facendo l'AND tra la sua posizione e cipherpos
 
-  // Copy only if isSuitable and stChanged
-  LweSample *mustCopyState =
-      new_gate_bootstrapping_ciphertext_array(1, params);
-  bootsAND(mustCopyState, isSuitable, cipherinstr_stChanged[0], bk), numGates++;
-  conditionalCopy(cipherstate, mustCopyState, cipherinstr_newSt[0], STATE_SIZE, bk);
+      // Copy only if isSuitable and stChanged
+      LweSample *mustCopyState =
+          new_gate_bootstrapping_ciphertext_array(1, params);
+      bootsAND(mustCopyState, isSuitable, cipherinstr_stChanged[i], bk), numGates++;
+      conditionalCopy(stateBuffer, mustCopyState, cipherinstr_newSt[i], STATE_SIZE, bk);
 
-  // Copy only if isSuitable and stChanged
-  LweSample *mustCopySymbol =
-      new_gate_bootstrapping_ciphertext_array(1, params);
-  bootsAND(mustCopySymbol, isSuitable, cipherinstr_symChanged[0], bk), numGates++;
-  conditionalCopy(ciphertape[0], mustCopySymbol, cipherinstr_newSym[0], STATE_SIZE, bk);
-  // cipherstate = cipherinstr_newSt[0];
+      // Copy only if isSuitable and stChanged
+      LweSample *mustCopySymbol =
+          new_gate_bootstrapping_ciphertext_array(1, params);
+      bootsAND(mustCopySymbol, isSuitable, cipherinstr_symChanged[i], bk), numGates++;
+      conditionalCopy(symbolBuffer, mustCopySymbol, cipherinstr_newSym[i], STATE_SIZE, bk);
+
+      delete_gate_bootstrapping_ciphertext_array(1, doesStateMatch);
+      delete_gate_bootstrapping_ciphertext_array(1, doesSymbolMatch);
+      delete_gate_bootstrapping_ciphertext_array(1, isSuitable);
+      delete_gate_bootstrapping_ciphertext_array(1, mustCopyState);
+      delete_gate_bootstrapping_ciphertext_array(1, mustCopySymbol);
+    }
+  }
+  bitwiseCopy(cipherstate, stateBuffer, STATE_SIZE, bk);
+  bitwiseCopy(ciphertape[0], symbolBuffer, SYMBOL_SIZE, bk);
 
   // export the 32 ciphertexts to a file (for the cloud)
   FILE *answer_data = fopen("answer.data", "wb");
