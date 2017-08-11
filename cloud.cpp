@@ -57,55 +57,55 @@ int main() {
   // if necessary, the params are inside the key
   const TFheGateBootstrappingParameterSet *params = bk->params;
 
-  LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
-  LweSample *ciphertape[TAPESIZE];
+  LweSample *state = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
+  LweSample *tape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++)
-    ciphertape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
-  LweSample *cipherinstr_curSt[INSTRSIZE];
-  LweSample *cipherinstr_curSym[INSTRSIZE];
-  LweSample *cipherinstr_newSt[INSTRSIZE];
-  LweSample *cipherinstr_newSym[INSTRSIZE];
-  LweSample *cipherinstr_stChanged[INSTRSIZE];
-  LweSample *cipherinstr_symChanged[INSTRSIZE];
-  LweSample *cipherinstr_dir[INSTRSIZE];
+    tape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
+  LweSample *instr_curSt[INSTRSIZE];
+  LweSample *instr_curSym[INSTRSIZE];
+  LweSample *instr_newSt[INSTRSIZE];
+  LweSample *instr_newSym[INSTRSIZE];
+  LweSample *instr_stChanged[INSTRSIZE];
+  LweSample *instr_symChanged[INSTRSIZE];
+  LweSample *instr_dir[INSTRSIZE];
   for (int i = 0; i < INSTRSIZE; i++) {
-    cipherinstr_curSt[i] =
+    instr_curSt[i] =
         new_gate_bootstrapping_ciphertext_array(CURST_SIZE, params);
-    cipherinstr_curSym[i] =
+    instr_curSym[i] =
         new_gate_bootstrapping_ciphertext_array(CURSYM_SIZE, params);
-    cipherinstr_newSt[i] =
+    instr_newSt[i] =
         new_gate_bootstrapping_ciphertext_array(NEWST_SIZE, params);
-    cipherinstr_newSym[i] =
+    instr_newSym[i] =
         new_gate_bootstrapping_ciphertext_array(NEWSYM_SIZE, params);
-    cipherinstr_stChanged[i] =
+    instr_stChanged[i] =
         new_gate_bootstrapping_ciphertext_array(STCHANGED_SIZE, params);
-    cipherinstr_symChanged[i] =
+    instr_symChanged[i] =
         new_gate_bootstrapping_ciphertext_array(SYMCHANGED_SIZE, params);
-    cipherinstr_dir[i] =
+    instr_dir[i] =
         new_gate_bootstrapping_ciphertext_array(DIR_SIZE, params);
   }
 
   FILE *cloud_data = fopen("cloud.data", "rb");
-  importFromFile(cloud_data, cipherstate, STATE_SIZE, params);
+  importFromFile(cloud_data, state, STATE_SIZE, params);
   for (int i = 0; i < TAPESIZE; i++)
-    importFromFile(cloud_data, ciphertape[i], SYMBOL_SIZE, params);
+    importFromFile(cloud_data, tape[i], SYMBOL_SIZE, params);
   for (int i = 0; i < INSTRSIZE; i++) {
-    importFromFile(cloud_data, cipherinstr_curSt[i], CURST_SIZE, params);
-    importFromFile(cloud_data, cipherinstr_curSym[i], CURSYM_SIZE, params);
-    importFromFile(cloud_data, cipherinstr_newSt[i], NEWST_SIZE, params);
-    importFromFile(cloud_data, cipherinstr_newSym[i], NEWSYM_SIZE, params);
-    importFromFile(cloud_data, cipherinstr_stChanged[i], STCHANGED_SIZE,
+    importFromFile(cloud_data, instr_curSt[i], CURST_SIZE, params);
+    importFromFile(cloud_data, instr_curSym[i], CURSYM_SIZE, params);
+    importFromFile(cloud_data, instr_newSt[i], NEWST_SIZE, params);
+    importFromFile(cloud_data, instr_newSym[i], NEWSYM_SIZE, params);
+    importFromFile(cloud_data, instr_stChanged[i], STCHANGED_SIZE,
                    params);
-    importFromFile(cloud_data, cipherinstr_symChanged[i], SYMCHANGED_SIZE,
+    importFromFile(cloud_data, instr_symChanged[i], SYMCHANGED_SIZE,
                    params);
-    importFromFile(cloud_data, cipherinstr_dir[i], DIR_SIZE, params);
+    importFromFile(cloud_data, instr_dir[i], DIR_SIZE, params);
   }
   fclose(cloud_data);
 
-  LweSample *stateBuffer = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
-  bitwiseCopy(stateBuffer, cipherstate, STATE_SIZE, bk);
-  LweSample *symbolBuffer = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
-  bitwiseCopy(symbolBuffer, ciphertape[0], SYMBOL_SIZE, bk);
+  LweSample *stateOutputBuffer = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
+  bitwiseCopy(stateOutputBuffer, state, STATE_SIZE, bk);
+  LweSample *symbolOutputBuffer = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
+  bitwiseCopy(symbolOutputBuffer, tape[0], SYMBOL_SIZE, bk);
 
   /* There are two ways to implement a Turing machine:
    * 
@@ -160,10 +160,10 @@ int main() {
     for (int i = 0; i < INSTRSIZE; i++) {
       LweSample *doesStateMatch =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      equals(doesStateMatch, stateBuffer, cipherinstr_curSt[i], STATE_SIZE, bk);
+      equals(doesStateMatch, state, instr_curSt[i], STATE_SIZE, bk);
       LweSample *doesSymbolMatch =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      equals(doesSymbolMatch, symbolBuffer, cipherinstr_curSym[i], SYMBOL_SIZE, bk);
+      equals(doesSymbolMatch, tape[0], instr_curSym[i], SYMBOL_SIZE, bk);
 
       LweSample *isSuitable =
           new_gate_bootstrapping_ciphertext_array(1, params);
@@ -172,14 +172,14 @@ int main() {
       // Copy only if isSuitable and stChanged
       LweSample *mustCopyState =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(mustCopyState, isSuitable, cipherinstr_stChanged[i], bk), numGates++;
-      conditionalCopy(stateBuffer, mustCopyState, cipherinstr_newSt[i], STATE_SIZE, bk);
+      bootsAND(mustCopyState, isSuitable, instr_stChanged[i], bk), numGates++;
+      conditionalCopy(stateOutputBuffer, mustCopyState, instr_newSt[i], STATE_SIZE, bk);
 
       // Copy only if isSuitable and stChanged
       LweSample *mustCopySymbol =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(mustCopySymbol, isSuitable, cipherinstr_symChanged[i], bk), numGates++;
-      conditionalCopy(symbolBuffer, mustCopySymbol, cipherinstr_newSym[i], STATE_SIZE, bk);
+      bootsAND(mustCopySymbol, isSuitable, instr_symChanged[i], bk), numGates++;
+      conditionalCopy(symbolOutputBuffer, mustCopySymbol, instr_newSym[i], STATE_SIZE, bk);
 
       delete_gate_bootstrapping_ciphertext_array(1, doesStateMatch);
       delete_gate_bootstrapping_ciphertext_array(1, doesSymbolMatch);
@@ -188,23 +188,23 @@ int main() {
       delete_gate_bootstrapping_ciphertext_array(1, mustCopySymbol);
     }
   }
-  bitwiseCopy(cipherstate, stateBuffer, STATE_SIZE, bk);
-  bitwiseCopy(ciphertape[0], symbolBuffer, SYMBOL_SIZE, bk);
+  bitwiseCopy(state, stateOutputBuffer, STATE_SIZE, bk);
+  bitwiseCopy(tape[0], symbolOutputBuffer, SYMBOL_SIZE, bk);
 
-  // export the 32 ciphertexts to a file (for the cloud)
+  // export the 32 texts to a file (for the cloud)
   FILE *answer_data = fopen("answer.data", "wb");
-  exportToFile(answer_data, cipherstate, STATE_SIZE, params);
+  exportToFile(answer_data, state, STATE_SIZE, params);
   for (int i = 0; i < TAPESIZE; i++)
-    exportToFile(answer_data, ciphertape[i], SYMBOL_SIZE, params);
+    exportToFile(answer_data, tape[i], SYMBOL_SIZE, params);
   for (int i = 0; i < INSTRSIZE; i++) {
-    // exportToFile(answer_data, cipherinstr[i], INSTRBITLEN, params);
+    // exportToFile(answer_data, instr[i], INSTRBITLEN, params);
   }
   fclose(answer_data);
 
   // clean up all pointers
-  delete_gate_bootstrapping_ciphertext_array(STATE_SIZE, cipherstate);
+  delete_gate_bootstrapping_ciphertext_array(STATE_SIZE, state);
   for (int i = 0; i < TAPESIZE; i++)
-    delete_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, ciphertape[i]);
+    delete_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, tape[i]);
   delete_gate_bootstrapping_cloud_keyset(bk);
 
   printf("%d gates computed.\n", numGates);
