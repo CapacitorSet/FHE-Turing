@@ -106,6 +106,55 @@ int main() {
   bitwiseCopy(stateBuffer, cipherstate, STATE_SIZE, bk);
   LweSample *symbolBuffer = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
   bitwiseCopy(symbolBuffer, ciphertape[0], SYMBOL_SIZE, bk);
+
+  /* There are two ways to implement a Turing machine:
+   * 
+   *   - Moving head: the tape doesn't move, i.e. tape[0] will always be
+   *     tape[0] unless its symbol is changed by the Turing machine.
+   *     
+   *     In this case, I would keep an (encrypted) variable "index" which
+   *     stores the position of the head, and the (encrypted) variable
+   *     "currentSymbol" representing the symbol under the tape. At each
+   *     iteration, the software would have to compare each index on the
+   *     tape with the "index" variable before multiplexing it in:
+   *     
+   *          for (i = 0; i < TAPE_SIZE; i++) {
+   *               bitwiseNOR(doesIndexMatch, index, tape[i].index)
+   *               conditionalCopy(currentSymbol, doesIndexMatch, tape[i].symbol)
+   *          }
+   *          // Instruction processing here (modifies symbolBuf, index)
+   *          for (i = 0; i < TAPE_SIZE; i++) {
+   *               bitwiseNOR(doesIndexMatch, index, tape[i].index)
+   *               conditionalCopy(tape[i].symbol, doesIndexMatch, symbolBuf)
+   *          }
+   *
+   *     Such an implementation requires 2 * (2 * TAPE_SIZE * SYMBOL_SIZE)
+   *     gate calculations per iteration, plus something more to increment
+   *     the index.
+   *   - Fixed head: the head doesn't move, the tape moves below it, i.e.
+   *     tape[0] might be moved to tape[1] or tape[-1] if the instructions
+   *     require it.
+   *
+   *     In this case, I would simply shift every symbol in the tape by one
+   *     (except for overflow/underflow) to the left or to the right if
+   *     needed:
+   *
+   *          bitwiseCopy(currentSymbol, tape[0])
+   *          // Instruction processing here (modifies symbolBuf, moveLeft, moveRight)
+   *          bitwiseCopy(tape[0], symbolBuf)
+   *          for (i = 0; i < TAPE_SIZE; i++) {
+   *               // overflow/underflow management skipped for simplicity
+   *               conditionalCopy(tape[i + 1], moveLeft, tape[i])
+   *               conditionalCopy(tape[i - 1], moveRight, tape[i])
+   *          }
+   *          bitwiseCopy(tape[0], symbolBuf) // was overwritten by shifting
+   *
+   *     Such an implementation requires exactly TAPE_SIZE * 2 * SYMBOL_SIZE
+   *     + 2 * SYMBOL_SIZE gate calculations per iteration, and uses smaller
+   *     data structures (doesn't require us to keep the index of each cell
+   *     on the tape).
+   */
+
   for (int iteration = 0; iteration < 2; iteration++) {
     printf("Iteration %d\n", iteration);
     for (int i = 0; i < INSTRSIZE; i++) {
@@ -119,9 +168,6 @@ int main() {
       LweSample *isSuitable =
           new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk), numGates++;
-
-      // nota: tenere una variabile currentSymbol
-      // aggiornarla a ogni loop, scorrendo il nastro e facendo l'AND tra la sua posizione e cipherpos
 
       // Copy only if isSuitable and stChanged
       LweSample *mustCopyState =
