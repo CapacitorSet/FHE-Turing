@@ -1,7 +1,7 @@
 #include "turing.h"
 #include <stdio.h>
 
-int numGates = 0;
+uint16_t numLogicGates = 0, numMuxGates = 0;
 
 // result is a bit, high if a == b, low otherwise
 void equals(LweSample *result, const LweSample *a, const LweSample *b,
@@ -9,7 +9,7 @@ void equals(LweSample *result, const LweSample *a, const LweSample *b,
   LweSample *tmp = new_gate_bootstrapping_ciphertext_array(1, bk->params);
 
   // result = true;
-  bootsCONSTANT(&result[0], 1, bk), numGates++;
+  bootsCONSTANT(&result[0], 1, bk);
 
   /* for (i < nb_bits) {
    *   tmp = (a[i] == b[i]); // xnor
@@ -17,8 +17,8 @@ void equals(LweSample *result, const LweSample *a, const LweSample *b,
    * }
    */
   for (int i = 0; i < nb_bits; i++) {
-    bootsXNOR(&tmp[0], &a[i], &b[i], bk), numGates++;
-    bootsAND(&result[0], &result[0], &tmp[0], bk), numGates++;
+    bootsXNOR(&tmp[0], &a[i], &b[i], bk), numLogicGates++;
+    bootsAND(&result[0], &result[0], &tmp[0], bk), numLogicGates++;
   }
 
   delete_gate_bootstrapping_ciphertext_array(1, tmp);
@@ -33,7 +33,7 @@ void conditionalCopy(LweSample *target, LweSample *trigger, LweSample *source,
    * }
    */
   for (int i = 0; i < nb_bits; i++)
-    bootsMUX(&target[i], &trigger[0], &source[i], &target[i], bk), numGates++;
+    bootsMUX(&target[i], &trigger[0], &source[i], &target[i], bk), numMuxGates++;
 }
 
 // target = source
@@ -44,7 +44,7 @@ void bitwiseCopy(LweSample *target, LweSample *source, const int nb_bits,
    * }
    */
   for (int i = 0; i < nb_bits; i++)
-    bootsCOPY(&target[i], &source[i], bk), numGates++;
+    bootsCOPY(&target[i], &source[i], bk);
 }
 
 int main() {
@@ -176,9 +176,9 @@ int main() {
       );
     #endif
     LweSample *moveLeft = new_gate_bootstrapping_ciphertext_array(1, params);
-    bootsCONSTANT(moveLeft, 0, bk), numGates++;
+    bootsCONSTANT(moveLeft, 0, bk);
     LweSample *moveRight = new_gate_bootstrapping_ciphertext_array(1, params);
-    bootsCONSTANT(moveRight, 0, bk), numGates++;
+    bootsCONSTANT(moveRight, 0, bk);
     for (int i = 0; i < INSTRSIZE; i++) {
       #if DEBUG
         printf(
@@ -201,25 +201,25 @@ int main() {
 
       LweSample *isSuitable =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk), numGates++;
+      bootsAND(isSuitable, doesStateMatch, doesSymbolMatch, bk), numLogicGates++;
 
       LweSample *mustGoLeft = new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(mustGoLeft, isSuitable, &instr_dir[i][0], bk), numGates++;
-      bootsOR(moveLeft, moveLeft, mustGoLeft, bk), numGates++;
+      bootsAND(mustGoLeft, isSuitable, &instr_dir[i][0], bk), numLogicGates++;
+      bootsOR(moveLeft, moveLeft, mustGoLeft, bk), numLogicGates++;
       LweSample *mustGoRight = new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(mustGoRight, isSuitable, &instr_dir[i][1], bk), numGates++;
-      bootsOR(moveRight, moveRight, mustGoRight, bk), numGates++;
+      bootsAND(mustGoRight, isSuitable, &instr_dir[i][1], bk), numLogicGates++;
+      bootsOR(moveRight, moveRight, mustGoRight, bk), numLogicGates++;
 
       // Copy only if isSuitable and stChanged
       LweSample *mustCopyState =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(mustCopyState, isSuitable, instr_stChanged[i], bk), numGates++;
+      bootsAND(mustCopyState, isSuitable, instr_stChanged[i], bk), numLogicGates++;
       conditionalCopy(stateOutputBuffer, mustCopyState, instr_newSt[i], STATE_SIZE, bk);
 
       // Copy only if isSuitable and stChanged
       LweSample *mustCopySymbol =
           new_gate_bootstrapping_ciphertext_array(1, params);
-      bootsAND(mustCopySymbol, isSuitable, instr_symChanged[i], bk), numGates++;
+      bootsAND(mustCopySymbol, isSuitable, instr_symChanged[i], bk), numLogicGates++;
       conditionalCopy(symbolOutputBuffer, mustCopySymbol, instr_newSym[i], STATE_SIZE, bk);
 
       #if DEBUG
@@ -323,5 +323,5 @@ int main() {
     delete_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, tape[i]);
   delete_gate_bootstrapping_cloud_keyset(bk);
 
-  printf("%d gates computed.\n", numGates);
+  printf("%d gates, %d muxes computed.\n", numLogicGates, numMuxGates);
 }
