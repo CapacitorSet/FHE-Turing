@@ -12,44 +12,39 @@ int main() {
   // if necessary, the params are inside the key
   const TFheGateBootstrappingParameterSet *params = key->params;
 
-  LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
-  LweSample *ciphertape[TAPESIZE];
+  LweSample *state = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
+  LweSample *tape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++)
-    ciphertape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
+    tape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
   /*
-  LweSample *cipherinstr[INSTRSIZE];
+  LweSample *instr[INSTRSIZE];
   for (int i = 0; i < INSTRSIZE; i++) {
-    cipherinstr[i] =
+    instr[i] =
         new_gate_bootstrapping_ciphertext_array(INSTRBITLEN, params);
   }
   */
 
   FILE *answer_data = fopen("answer.data", "rb");
-  importFromFile(answer_data, cipherstate, STATE_SIZE, params);
+  importFromFile(answer_data, state, STATE_SIZE, params);
   for (int i = 0; i < TAPESIZE; i++)
-    importFromFile(answer_data, ciphertape[i], SYMBOL_SIZE, params);
+    importFromFile(answer_data, tape[i], SYMBOL_SIZE, params);
   /*
   for (int i = 0; i < INSTRSIZE; i++)
-    importFromFile(answer_data, cipherinstr[i], INSTRBITLEN, params);
+    importFromFile(answer_data, instr[i], INSTRBITLEN, params);
   */
   fclose(answer_data);
 
-  state_t plainstate = 0;
-  for (int i = 0; i < STATE_SIZE; i++) {
-    int ai = bootsSymDecrypt(&cipherstate[i], key);
-    plainstate |= (ai << i);
-  }
+  state_t plainstate = stateDecrypt(state);
+  printf("State: [%c %02x]\n", plainstate, plainstate);
 
-  symbol_t plainfirstcell = 0;
-  for (int i = 0; i < STATE_SIZE; i++) {
-    int ai = bootsSymDecrypt(&(ciphertape[0])[i], key);
-    plainfirstcell |= (ai << i);
+  printf("Tape:\nASCII | Hex\n");
+  for (size_t i = 0; i < TAPESIZE; i++) {
+    symbol_t current = symbolDecrypt(tape[i]);
+    printf("  %c   | %02x\n", current ? current : '_', current);
   }
-
-  printf("State:\t%d\t(%c)\n", plainstate, plainstate);
-  printf("Tape:\t%d\t(%c)\n", plainfirstcell, plainfirstcell);
+  printf("\n");
 
   // clean up all pointers
-  delete_gate_bootstrapping_ciphertext_array(STATE_SIZE, cipherstate);
+  delete_gate_bootstrapping_ciphertext_array(STATE_SIZE, state);
   delete_gate_bootstrapping_secret_keyset(key);
 }

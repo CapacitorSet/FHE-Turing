@@ -1,7 +1,7 @@
 CPP = clang++
 
-CXXFLAGS += -std=c++11 -Wall -Wextra -pedantic -Wno-c99-extensions
-LDFLAGS += -ltfhe-spqlios-fma
+CXXFLAGS += -std=c++11 -stdlib=libc++ -Wall -Wextra -pedantic -Wno-c99-extensions
+LDFLAGS += -ltfhe-spqlios-avx
 
 all: alice cloud verif
 

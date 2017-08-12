@@ -5,7 +5,9 @@
 #define TAPESIZE (8)
 #define INSTRSIZE (2)
 #define STATE_SIZE (8)
+#define STATE_FORMAT "%02x"
 #define SYMBOL_SIZE (8)
+#define SYMBOL_FORMAT "%02x"
 
 #define CURST_SIZE      (STATE_SIZE)
 #define CURSYM_SIZE     (SYMBOL_SIZE)
@@ -67,3 +69,19 @@ void exportToFile(FILE *data, LweSample *result, int length,
   for (int i = 0; i < length; i++)
     export_gate_bootstrapping_ciphertext_toFile(data, &result[i], params);
 }
+
+#define decrypt(x) bootsSymDecrypt(x, key)
+symbol_t _symbolDecrypt(LweSample *target, TFheGateBootstrappingSecretKeySet *key) {
+  symbol_t ret = 0;
+  for (int i = 0; i < SYMBOL_SIZE; i++)
+    ret |= decrypt(&target[i]) << i;
+  return ret;
+}
+#define symbolDecrypt(x) _symbolDecrypt(x, key)
+state_t _stateDecrypt(LweSample *target, TFheGateBootstrappingSecretKeySet *key) {
+  state_t ret = 0;
+  for (int i = 0; i < STATE_SIZE; i++)
+    ret |= decrypt(&target[i]) << i;
+  return ret;
+}
+#define stateDecrypt(x) _stateDecrypt(x, key)

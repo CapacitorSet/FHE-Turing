@@ -44,20 +44,20 @@ int main() {
   printf("Initializing plain instruction array...\n");
   for (int i = 0; i < INSTRSIZE; i++)
     plaininstr[i] = (instr_t){0, 0, false, 0, false, 0, STATIONARY};
-  plaininstr[0] = {.curSt = 'g',
-                   .curSym = '0',
-                   .newSt = 'b',
-                   .newSym = 'x',
-                   .stChanged = true,
+  plaininstr[0] = {.curSt      = 0,
+                   .curSym     = 'a',
+                   .newSt      = 0,
+                   .newSym     = 'A',
+                   .stChanged  = false,
                    .symChanged = true,
-                   .dir = STATIONARY};
-  plaininstr[1] = {.curSt = 'b',
-                   .curSym = 'x',
-                   .newSt = 'w',
-                   .newSym = 'h',
-                   .stChanged = true,
+                   .dir        = RIGHT };
+  plaininstr[1] = {.curSt      = 0,
+                   .curSym     = 'b',
+                   .newSt      = 0,
+                   .newSym     = 'B',
+                   .stChanged  = false,
                    .symChanged = true,
-                   .dir = STATIONARY};
+                   .dir        = RIGHT };
   for (int j = 0; j < INSTRBITLEN; j++)
     printf("%d", getNthBitOfInstr(plaininstr[0], j));
   printf("\n");
@@ -74,7 +74,7 @@ int main() {
   }
 
   printf("Initializing plain state...\n");
-  state_t plainstate = 'g';
+  state_t plainstate = 0;
   printf("Initializing cipher state...\n");
   LweSample *cipherstate = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
   setStateFromPlain(cipherstate, plainstate, key);
@@ -83,7 +83,11 @@ int main() {
   symbol_t plaintape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++)
     plaintape[i] = 0;
-  plaintape[0] = '0';
+  plaintape[0] = 'a';
+  plaintape[1] = 'b';
+  plaintape[2] = 'a';
+  plaintape[3] = 'a';
+  plaintape[4] = 'b';
 
   printf("Initializing cipher tape...\n");
   LweSample *ciphertape[TAPESIZE];
