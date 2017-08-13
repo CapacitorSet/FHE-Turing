@@ -43,24 +43,29 @@ int main() {
   LweSample *cipherinstr[INSTRSIZE];
   printf("Initializing plain instruction array...\n");
   for (int i = 0; i < INSTRSIZE; i++)
-    plaininstr[i] = (instr_t){0, 0, false, 0, false, 0, STATIONARY};
-  plaininstr[0] = {.curSt      = 0,
+    plaininstr[i] = (instr_t){ .dir = STATIONARY, .stChanged = false, .symChanged = false };
+  // A simple program that converts "a" and "b" to "A" and "B", and prints an "X" and halts when unknown characters are found.
+  // Note: because instructions are executed top to bottom, the first instruction acts as a fallback: the catch-all ".anyCurSt = true, .anyCurSym = true" only matters if there are no newer instructions that also match.
+  plaininstr[0] = {.anyCurSt   = true,
+                   .anyCurSym  = true,
+                   .stChanged  = false,
+                   .newSym     = 'X',
+                   .symChanged = true,
+                   .dir        = STATIONARY };
+  plaininstr[1] = {.anyCurSt   = true,
                    .curSym     = 'a',
-                   .newSt      = 0,
+                   .anyCurSym  = false,
+                   .stChanged  = false,
                    .newSym     = 'A',
-                   .stChanged  = false,
                    .symChanged = true,
                    .dir        = RIGHT };
-  plaininstr[1] = {.curSt      = 0,
+  plaininstr[2] = {.anyCurSt   = true,
                    .curSym     = 'b',
-                   .newSt      = 0,
-                   .newSym     = 'B',
+                   .anyCurSym  = false,
                    .stChanged  = false,
+                   .newSym     = 'B',
                    .symChanged = true,
                    .dir        = RIGHT };
-  for (int j = 0; j < INSTRBITLEN; j++)
-    printf("%d", getNthBitOfInstr(plaininstr[0], j));
-  printf("\n");
   printf("Initializing cipher instruction array...\n");
   for (int i = 0; i < INSTRSIZE; i++) {
     cipherinstr[i] =

@@ -75,9 +75,11 @@ int main() {
   LweSample *instr_curSym[INSTRSIZE];
   LweSample *instr_newSt[INSTRSIZE];
   LweSample *instr_newSym[INSTRSIZE];
+  LweSample *instr_dir[INSTRSIZE];
   LweSample *instr_stChanged[INSTRSIZE];
   LweSample *instr_symChanged[INSTRSIZE];
-  LweSample *instr_dir[INSTRSIZE];
+  LweSample *instr_anyCurSt[INSTRSIZE];
+  LweSample *instr_anyCurSym[INSTRSIZE];
   for (int i = 0; i < INSTRSIZE; i++) {
     instr_curSt[i] =
         new_gate_bootstrapping_ciphertext_array(CURST_SIZE, params);
@@ -87,12 +89,16 @@ int main() {
         new_gate_bootstrapping_ciphertext_array(NEWST_SIZE, params);
     instr_newSym[i] =
         new_gate_bootstrapping_ciphertext_array(NEWSYM_SIZE, params);
+    instr_dir[i] =
+        new_gate_bootstrapping_ciphertext_array(DIR_SIZE, params);
+    instr_anyCurSt[i] =
+        new_gate_bootstrapping_ciphertext_array(ANYCURST_SIZE, params);
+    instr_anyCurSym[i] =
+        new_gate_bootstrapping_ciphertext_array(ANYCURSYM_SIZE, params);
     instr_stChanged[i] =
         new_gate_bootstrapping_ciphertext_array(STCHANGED_SIZE, params);
     instr_symChanged[i] =
         new_gate_bootstrapping_ciphertext_array(SYMCHANGED_SIZE, params);
-    instr_dir[i] =
-        new_gate_bootstrapping_ciphertext_array(DIR_SIZE, params);
   }
 
   printf("Reading cloud data...\n");
@@ -105,11 +111,28 @@ int main() {
     importFromFile(cloud_data, instr_curSym[i], CURSYM_SIZE, params);
     importFromFile(cloud_data, instr_newSt[i], NEWST_SIZE, params);
     importFromFile(cloud_data, instr_newSym[i], NEWSYM_SIZE, params);
-    importFromFile(cloud_data, instr_stChanged[i], STCHANGED_SIZE,
-                   params);
-    importFromFile(cloud_data, instr_symChanged[i], SYMCHANGED_SIZE,
-                   params);
     importFromFile(cloud_data, instr_dir[i], DIR_SIZE, params);
+    importFromFile(cloud_data, instr_anyCurSt[i], ANYCURST_SIZE, params);
+    importFromFile(cloud_data, instr_anyCurSym[i], ANYCURSYM_SIZE, params);
+    importFromFile(cloud_data, instr_stChanged[i], STCHANGED_SIZE, params);
+    importFromFile(cloud_data, instr_symChanged[i], SYMCHANGED_SIZE, params);
+    #if DEBUG
+      printf(
+        "Read instruction: (" STATE_FORMAT " [any %d] " SYMBOL_FORMAT " [any %d]) "
+        "-> (" STATE_FORMAT " [changed %d] " SYMBOL_FORMAT " [changed %d]), "
+          "l/r %d/%d\n",
+          stateDecrypt(instr_curSt[i]),
+          decrypt(instr_anyCurSt[i]),
+          symbolDecrypt(instr_curSym[i]),
+          decrypt(instr_anyCurSym[i]),
+          stateDecrypt(instr_newSt[i]),
+          decrypt(instr_stChanged[i]),
+          symbolDecrypt(instr_newSym[i]),
+          decrypt(instr_symChanged[i]),
+          decrypt(&instr_dir[i][0]),
+          decrypt(&instr_dir[i][1])
+      );
+    #endif
   }
   fclose(cloud_data);
   printf("Read.\n");
@@ -162,11 +185,12 @@ int main() {
    *     on the tape).
    */
 
-  for (int iteration = 0; iteration < 5; iteration++) {
+  for (int iteration = 0; iteration < 8; iteration++) {
     printf("Iteration %d\n", iteration);
     LweSample *stateOutputBuffer = new_gate_bootstrapping_ciphertext_array(STATE_SIZE, params);
-    bitwiseCopy(stateOutputBuffer, state, STATE_SIZE, bk);
-    LweSample *symbolOutputBuffer = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
+    bitwiseCopy(stateOutputBuffer, state, STATE_SIZE, bk); // todo: copy only if it's worth it (STATE_SIZE < INSTRSIZE)
+    // otherwise, use a variable "stateChanged", and then conditionalCopy
+    LweSample *symbolOutputBuffer = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params); // same here, more or less
     bitwiseCopy(symbolOutputBuffer, tape[0], SYMBOL_SIZE, bk);
     #if DEBUG
       printf(
@@ -179,25 +203,35 @@ int main() {
     bootsCONSTANT(moveLeft, 0, bk);
     LweSample *moveRight = new_gate_bootstrapping_ciphertext_array(1, params);
     bootsCONSTANT(moveRight, 0, bk);
+    LweSample *wasStateChanged = new_gate_bootstrapping_ciphertext_array(1, params);
+    bootsCONSTANT(wasStateChanged, 0, bk);
+    LweSample *wasSymbolChanged = new_gate_bootstrapping_ciphertext_array(1, params);
+    bootsCONSTANT(wasSymbolChanged, 0, bk);
     for (int i = 0; i < INSTRSIZE; i++) {
       #if DEBUG
         printf(
-          "\tInstruction %d: (" STATE_FORMAT " " SYMBOL_FORMAT ") -> "
-          "(" STATE_FORMAT " " SYMBOL_FORMAT ") %c\n",
+          "\tInstruction %d: (" STATE_FORMAT " [any %d] " SYMBOL_FORMAT " [any %d]) -> "
+          "(" STATE_FORMAT " [changed %d] " SYMBOL_FORMAT " [changed %d]) %c\n",
           i,
           stateDecrypt(instr_curSt[i]),
+          decrypt(instr_anyCurSt[i]),
           symbolDecrypt(instr_curSym[i]),
+          decrypt(instr_anyCurSym[i]),
           stateDecrypt(instr_newSt[i]),
+          decrypt(instr_stChanged[i]),
           symbolDecrypt(instr_newSym[i]),
+          decrypt(instr_symChanged[i]),
           decrypt(&instr_dir[i][0]) ? 'l' : (decrypt(&instr_dir[i][1]) ? 'r' : 'x')
         );
       #endif
       LweSample *doesStateMatch =
           new_gate_bootstrapping_ciphertext_array(1, params);
       equals(doesStateMatch, state, instr_curSt[i], STATE_SIZE, bk);
+      bootsOR(doesStateMatch, doesStateMatch, instr_anyCurSt[i], bk), numLogicGates++;
       LweSample *doesSymbolMatch =
           new_gate_bootstrapping_ciphertext_array(1, params);
       equals(doesSymbolMatch, tape[0], instr_curSym[i], SYMBOL_SIZE, bk);
+      bootsOR(doesSymbolMatch, doesSymbolMatch, instr_anyCurSym[i], bk), numLogicGates++;
 
       LweSample *isSuitable =
           new_gate_bootstrapping_ciphertext_array(1, params);
@@ -210,7 +244,6 @@ int main() {
       bootsAND(mustGoRight, isSuitable, &instr_dir[i][1], bk), numLogicGates++;
       bootsOR(moveRight, moveRight, mustGoRight, bk), numLogicGates++;
 
-      // Copy only if isSuitable and stChanged
       LweSample *mustCopyState =
           new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(mustCopyState, isSuitable, instr_stChanged[i], bk), numLogicGates++;
@@ -221,10 +254,11 @@ int main() {
           new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(mustCopySymbol, isSuitable, instr_symChanged[i], bk), numLogicGates++;
       conditionalCopy(symbolOutputBuffer, mustCopySymbol, instr_newSym[i], STATE_SIZE, bk);
+      bootsCOPY(wasSymbolChanged, mustCopySymbol, bk), numLogicGates++;
 
       #if DEBUG
         printf(
-          "\t\tMatches: state " STATE_FORMAT ", symbol " SYMBOL_FORMAT " -> suitable: %d\n",
+          "\t\tMatches: state %d, symbol %d -> suitable: %d\n",
           decrypt(doesStateMatch),
           decrypt(doesSymbolMatch),
           decrypt(isSuitable)
@@ -269,9 +303,12 @@ int main() {
       printf("\n");
     #endif
 
+    // Let K be the new symbol, the tape is transformed like this: ABCD -> KBCD
+    bitwiseCopy(tape[0], symbolOutputBuffer, SYMBOL_SIZE, bk);
+
     /* Code for shifting left.
      * Let K be the new symbol, the tape is transformed like this:
-     * ABCD -> BCDD -> BCDK
+     * KBCD -> BCDD -> BCDK
      */
     for (size_t i = 0; i < TAPESIZE - 1; i++)
       conditionalCopy(tape[i], moveRight, tape[i + 1], SYMBOL_SIZE, bk);
@@ -279,7 +316,7 @@ int main() {
 
     /* Code for shifting right.
      * Let K be the new symbol, the tape is transformed like this:
-     * ABCD -> AABC -> DABC -> DKBC
+     * KBCD -> KKBC -> DKBC
      */
     LweSample *lastSymbol = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
     bitwiseCopy(lastSymbol, tape[TAPESIZE - 1], SYMBOL_SIZE, bk);
@@ -294,7 +331,6 @@ int main() {
     #endif
 
     conditionalCopy(tape[0], moveLeft, lastSymbol, SYMBOL_SIZE, bk);
-    conditionalCopy(tape[1], moveLeft, symbolOutputBuffer, SYMBOL_SIZE, bk);
     delete_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, lastSymbol);
 
     #if DEBUG
