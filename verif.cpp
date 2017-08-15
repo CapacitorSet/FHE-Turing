@@ -2,8 +2,6 @@
 #include <stdio.h>
 
 int main() {
-
-  // reads the cloud key from file
   FILE *secret_key = fopen("secret.key", "rb");
   TFheGateBootstrappingSecretKeySet *key =
       new_tfheGateBootstrappingSecretKeySet_fromFile(secret_key);
@@ -16,13 +14,6 @@ int main() {
   LweSample *tape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++)
     tape[i] = new_gate_bootstrapping_ciphertext_array(SYMBOL_SIZE, params);
-  /*
-  LweSample *instr[INSTRSIZE];
-  for (int i = 0; i < INSTRSIZE; i++) {
-    instr[i] =
-        new_gate_bootstrapping_ciphertext_array(INSTRBITLEN, params);
-  }
-  */
 
   FILE *answer_data = fopen("answer.data", "rb");
   importFromFile(answer_data, state, STATE_SIZE, params);
