@@ -1,0 +1,14 @@
+; Syntax: <current state> <current symbol> <new symbol> <direction> <new state>
+; "*" in current state/current symbol means "any"
+; "*" in new state/new symbol means "do not change"
+; "*" in direction means "do not move"
+
+0 * ? r *    ; Overwrite unknown symbols with "?"
+0 a A r *    ; Convert 'a' to 'A'
+0 b B r *    ; Convert 'b' to 'B'
+0 _ * l back ; If a space is found, go back. Note that this instruction takes the precedence because it comes later in the file.
+
+back _ * * halt ; ... other than "_". In that case, go to the state "halt".
+back * * l *    ; In the state "back", go left on any symbol...
+
+; Note that because we haven't written any instruction for the state "halt", the machine won't do anything.
