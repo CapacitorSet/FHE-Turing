@@ -3,11 +3,11 @@
 #include <tfhe/tfhe_io.h>
 
 #define TAPESIZE (8)
-#define INSTRSIZE (3)
+#define INSTRSIZE (8)
 #define STATE_SIZE (8)
 #define STATE_FORMAT "%02x"
 #define SYMBOL_SIZE (8)
-#define SYMBOL_FORMAT "%02x"
+#define SYMBOL_FORMAT "%c"
 
 #define CURST_SIZE      (STATE_SIZE)
 #define CURSYM_SIZE     (SYMBOL_SIZE)

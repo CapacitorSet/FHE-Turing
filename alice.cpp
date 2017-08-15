@@ -13,6 +13,14 @@ void setSymbolFromPlain(LweSample *cipher, symbol_t plain,
     bootsSymEncrypt(&cipher[i], (plain >> i) & 1, key);
 }
 
+size_t getStateID(char *item, char **set, size_t *len) {
+  // Gets the id of the given state. Adds it to the state set if it is not present.
+  for (size_t i = 0; i < *len; i++)
+    if (strcmp(set[i], item) == 0) return i;
+  set[(*len)++] = item;
+  return *len;
+}
+
 int main() {
   // reads the cloud key from file
   FILE *secret_key = fopen("secret.key", "rb");
@@ -31,30 +39,106 @@ int main() {
   instr_t plaininstr[INSTRSIZE];
   LweSample *cipherinstr[INSTRSIZE];
   printf("Initializing plain instruction array...\n");
+
   for (int i = 0; i < INSTRSIZE; i++)
     plaininstr[i] = (instr_t){ .dir = STATIONARY, .stChanged = false, .symChanged = false };
-  // A simple program that converts "a" and "b" to "A" and "B", and prints an "X" and halts when unknown characters are found.
-  // Note: because instructions are executed top to bottom, the first instruction acts as a fallback: the catch-all ".anyCurSt = true, .anyCurSym = true" only matters if there are no newer instructions that also match.
-  plaininstr[0] = {.anyCurSt   = true,
-                   .anyCurSym  = true,
-                   .stChanged  = false,
-                   .newSym     = 'X',
-                   .symChanged = true,
-                   .dir        = STATIONARY };
-  plaininstr[1] = {.anyCurSt   = true,
-                   .curSym     = 'a',
-                   .anyCurSym  = false,
-                   .stChanged  = false,
-                   .newSym     = 'A',
-                   .symChanged = true,
-                   .dir        = RIGHT };
-  plaininstr[2] = {.anyCurSt   = true,
-                   .curSym     = 'b',
-                   .anyCurSym  = false,
-                   .stChanged  = false,
-                   .newSym     = 'B',
-                   .symChanged = true,
-                   .dir        = RIGHT };
+
+  FILE* instrfile = fopen("program.txt", "r");
+  char line[256];
+  uint16_t instrNum = 0;
+  uint16_t lineNum = 1;
+  char *stateSet[STATE_SIZE];
+  stateSet[0] = (char*) "0"; // initial state
+  stateSet[1] = (char*) "*"; // dummy
+  size_t stateNum = 2; // Begin from 2, because states 0 and 1 are taken by default
+  while (fgets(line, sizeof(line), instrfile)) {
+    if (instrNum >= INSTRSIZE) {
+      printf("This program supports at most %d instructions, change turing.h to support more.\n", INSTRSIZE);
+      return 1;
+    }
+
+    char* _curSt = strtok(line, " ");
+    if (_curSt[0] == ';' || _curSt[0] == '\r' || _curSt[0] == '\n') continue;
+    char* curSt = strdup(_curSt);
+    printf("Inserting %s... ", curSt);
+    symbol_t curStID = getStateID(curSt, stateSet, &stateNum);
+    printf("Has ID %d. \n", curStID);
+    bool anyCurSt = strcmp(curSt, "*") == 0;
+
+    char* _curSym = strtok(NULL, " ");
+    if (_curSym[0] == ';' || _curSym[0] == '\r' || _curSym[0] == '\n') continue;
+    if (strlen(_curSym) != 1) {
+      printf("Symbol \"%s\" is invalid, must be one character long (at line %d)\n", _curSym, lineNum);
+      return 1;
+    }
+    symbol_t curSym = _curSym[0];
+    bool anyCurSym = curSym == '*';
+
+    char* _newSym = strtok(NULL, " ");
+    if (_newSym[0] == ';' || _newSym[0] == '\r' || _newSym[0] == '\n') continue;
+    if (strlen(_newSym) != 1) {
+      printf("Symbol \"%s\" is invalid, must be one character long (at line %d)\n", _newSym, lineNum);
+      return 1;
+    }
+    symbol_t newSym = _newSym[0];
+    bool symChanged = (newSym != '*') && (curSym != newSym);
+
+    char* _dirChar = strtok(NULL, " ");
+    if (_dirChar[0] == ';' || _dirChar[0] == '\r' || _dirChar[0] == '\n') continue;
+    if (strlen(_dirChar) != 1) {
+      printf("Direction \"%s\" is invalid, must be 'l', 'r' or '*' (at line %d)\n", _dirChar, lineNum);
+      return 1;
+    }
+    char dirChar = _dirChar[0];
+    dir_t dir;
+    switch (dirChar) {
+      case 'l':
+        dir = LEFT;
+        break;
+      case 'r':
+        dir = RIGHT;
+        break;
+      case '*':
+        dir = STATIONARY;
+        break;
+      default:
+        printf("Direction \"%s\" is invalid, must be 'l', 'r' or '*' (at line %d)\n", _dirChar, lineNum);
+        return 1;
+    }
+
+    char* _newSt = strtok(NULL, " ");
+    if (_newSt[0] == ';' || _newSt[0] == '\r' || _newSt[0] == '\n') continue;
+    char* newSt = strdup(_newSt);
+    printf("Inserting %s... ", newSt);
+    symbol_t newStID = getStateID(newSt, stateSet, &stateNum);
+    printf("Has ID %d.\n\n", newStID);
+    bool stChanged = (strcmp(_newSt, "*") != 0) && (curStID != newStID);
+
+    plaininstr[instrNum] = {
+      .curSt      = curStID,
+      .anyCurSt   = anyCurSt,
+      .curSym     = curSym,
+      .anyCurSym  = anyCurSym,
+      .dir        = dir,
+      .newSt      = newStID,
+      .stChanged  = stChanged,
+      .newSym     = newSym,
+      .symChanged = symChanged
+    };
+    #if DEBUG
+      printf(
+        "Emitting instruction: "
+        "(" STATE_FORMAT " [any %d] " SYMBOL_FORMAT " [any %d]) -> "
+        "(" STATE_FORMAT " [changed %d] " SYMBOL_FORMAT " [changed %d]), direction %d\n",
+        curStID, anyCurSt, curSym, anyCurSym,
+        newStID, stChanged, newSym, symChanged,
+        dir
+      );
+    #endif
+    instrNum++;
+    lineNum++;
+  }
+
   printf("Initializing cipher instruction array...\n");
   for (int i = 0; i < INSTRSIZE; i++) {
     cipherinstr[i] =
@@ -76,7 +160,7 @@ int main() {
   printf("Initializing plain tape...\n");
   symbol_t plaintape[TAPESIZE];
   for (int i = 0; i < TAPESIZE; i++)
-    plaintape[i] = 0;
+    plaintape[i] = '_';
   plaintape[0] = 'a';
   plaintape[1] = 'b';
   plaintape[2] = 'a';
