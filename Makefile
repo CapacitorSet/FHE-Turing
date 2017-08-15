@@ -1,9 +1,12 @@
 CPP = clang++
 
-CXXFLAGS += -std=c++11 -stdlib=libc++ -Wall -Wextra -pedantic -Wno-c99-extensions
+CXXFLAGS += -std=c++11 -stdlib=libc++ -Wall -Wextra -Wno-c99-extensions
 LDFLAGS += -ltfhe-spqlios-avx
 
-all: alice cloud verif
+all: keygen alice cloud verif
+
+keygen: keygen.cpp turing.h
+	${CPP} keygen.cpp -o keygen ${CXXFLAGS} ${LDFLAGS}
 
 alice: alice.cpp turing.h
 	${CPP} alice.cpp -o alice ${CXXFLAGS} ${LDFLAGS}

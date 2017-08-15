@@ -14,30 +14,19 @@ void setSymbolFromPlain(LweSample *cipher, symbol_t plain,
 }
 
 int main() {
-  printf("Generating keyset...\n");
-  // generate a keyset
-  const int minimum_lambda = 110;
-  TFheGateBootstrappingParameterSet *params =
-      new_default_gate_bootstrapping_parameters(minimum_lambda);
-
-  printf("Generating key...\n");
-  // generate a random key
-  uint32_t seed[] = {314, 1592, 657};
-  tfhe_random_generator_setSeed(seed, 3);
+  // reads the cloud key from file
+  FILE *secret_key = fopen("secret.key", "rb");
   TFheGateBootstrappingSecretKeySet *key =
-      new_random_gate_bootstrapping_secret_keyset(params);
-
-  printf("Exporting secret key...\n");
-  // export the secret key to file for later use
-  FILE *secret_key = fopen("secret.key", "wb");
-  export_tfheGateBootstrappingSecretKeySet_toFile(secret_key, key);
+      new_tfheGateBootstrappingSecretKeySet_fromFile(secret_key);
   fclose(secret_key);
 
-  printf("Exporting public key...\n");
-  // export the cloud key to a file (for the cloud)
-  FILE *cloud_key = fopen("cloud.key", "wb");
-  export_tfheGateBootstrappingCloudKeySet_toFile(cloud_key, &key->cloud);
+  // reads the cloud key from file
+  FILE *cloud_key = fopen("cloud.key", "rb");
+  TFheGateBootstrappingCloudKeySet *bk =
+      new_tfheGateBootstrappingCloudKeySet_fromFile(cloud_key);
   fclose(cloud_key);
+
+  const TFheGateBootstrappingParameterSet *params = bk->params;
 
   instr_t plaininstr[INSTRSIZE];
   LweSample *cipherinstr[INSTRSIZE];
@@ -115,5 +104,5 @@ int main() {
 
   // clean up all pointers
   delete_gate_bootstrapping_secret_keyset(key);
-  delete_gate_bootstrapping_parameters(params);
+  delete_gate_bootstrapping_cloud_keyset(bk);
 }
