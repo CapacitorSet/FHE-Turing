@@ -199,10 +199,12 @@ int main() {
         symbolDecrypt(tape[0])
       );
     #endif
+    // Note that these two are also output buffers.
     LweSample *moveLeft = new_gate_bootstrapping_ciphertext_array(1, params);
     bootsCONSTANT(moveLeft, 0, bk);
     LweSample *moveRight = new_gate_bootstrapping_ciphertext_array(1, params);
     bootsCONSTANT(moveRight, 0, bk);
+
     LweSample *wasStateChanged = new_gate_bootstrapping_ciphertext_array(1, params);
     bootsCONSTANT(wasStateChanged, 0, bk);
     LweSample *wasSymbolChanged = new_gate_bootstrapping_ciphertext_array(1, params);
@@ -239,22 +241,21 @@ int main() {
 
       LweSample *mustGoLeft = new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(mustGoLeft, isSuitable, &instr_dir[i][0], bk), numLogicGates++;
-      bootsOR(moveLeft, moveLeft, mustGoLeft, bk), numLogicGates++;
+      conditionalCopy(moveLeft, isSuitable, mustGoLeft, 1, bk);
       LweSample *mustGoRight = new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(mustGoRight, isSuitable, &instr_dir[i][1], bk), numLogicGates++;
-      bootsOR(moveRight, moveRight, mustGoRight, bk), numLogicGates++;
-
+      conditionalCopy(moveRight, isSuitable, mustGoRight, 1, bk);
       LweSample *mustCopyState =
           new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(mustCopyState, isSuitable, instr_stChanged[i], bk), numLogicGates++;
       conditionalCopy(stateOutputBuffer, mustCopyState, instr_newSt[i], STATE_SIZE, bk);
-
-      // Copy only if isSuitable and stChanged
       LweSample *mustCopySymbol =
           new_gate_bootstrapping_ciphertext_array(1, params);
       bootsAND(mustCopySymbol, isSuitable, instr_symChanged[i], bk), numLogicGates++;
       conditionalCopy(symbolOutputBuffer, mustCopySymbol, instr_newSym[i], STATE_SIZE, bk);
-      bootsCOPY(wasSymbolChanged, mustCopySymbol, bk), numLogicGates++;
+
+      conditionalCopy(wasStateChanged, isSuitable, mustCopyState, 1, bk);
+      conditionalCopy(wasSymbolChanged, isSuitable, mustCopySymbol, 1, bk);
 
       #if DEBUG
         printf(
@@ -277,6 +278,11 @@ int main() {
           "\t\tmustCopy: state %d, symbol %d\n",
           decrypt(mustCopyState),
           decrypt(mustCopySymbol)
+        );
+        printf(
+          "\t\twasChanged: state %d, symbol %d\n",
+          decrypt(wasStateChanged),
+          decrypt(wasSymbolChanged)
         );
         printf(
           "\t\tOutput buffers: state " STATE_FORMAT ", symbol " SYMBOL_FORMAT "\n",

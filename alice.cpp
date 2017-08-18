@@ -18,7 +18,7 @@ size_t getStateID(char *item, char **set, size_t *len) {
   for (size_t i = 0; i < *len; i++)
     if (strcmp(set[i], item) == 0) return i;
   set[(*len)++] = item;
-  return *len;
+  return (*len) - 1;
 }
 
 int main() {
@@ -60,9 +60,7 @@ int main() {
     char* _curSt = strtok(line, " ");
     if (_curSt[0] == ';' || _curSt[0] == '\r' || _curSt[0] == '\n') continue;
     char* curSt = strdup(_curSt);
-    printf("Inserting %s... ", curSt);
     symbol_t curStID = getStateID(curSt, stateSet, &stateNum);
-    printf("Has ID %d. \n", curStID);
     bool anyCurSt = strcmp(curSt, "*") == 0;
 
     char* _curSym = strtok(NULL, " ");
@@ -109,9 +107,8 @@ int main() {
     char* _newSt = strtok(NULL, " ");
     if (_newSt[0] == ';' || _newSt[0] == '\r' || _newSt[0] == '\n') continue;
     char* newSt = strdup(_newSt);
-    printf("Inserting %s... ", newSt);
     symbol_t newStID = getStateID(newSt, stateSet, &stateNum);
-    printf("Has ID %d.\n\n", newStID);
+    printf("State %s has ID %d\n", newSt, newStID);
     bool stChanged = (strcmp(_newSt, "*") != 0) && (curStID != newStID);
 
     plaininstr[instrNum] = {
@@ -129,15 +126,21 @@ int main() {
       printf(
         "Emitting instruction: "
         "(" STATE_FORMAT " [any %d] " SYMBOL_FORMAT " [any %d]) -> "
-        "(" STATE_FORMAT " [changed %d] " SYMBOL_FORMAT " [changed %d]), direction %d\n",
+        "(" STATE_FORMAT " [changed %d] " SYMBOL_FORMAT " [changed %d]), direction %c\n",
         curStID, anyCurSt, curSym, anyCurSym,
         newStID, stChanged, newSym, symChanged,
-        dir
+        dir == LEFT ? 'l' : (dir == RIGHT ? 'r' : 'x')
       );
     #endif
     instrNum++;
     lineNum++;
   }
+
+  #if DEBUG
+    printf("State map:\n");
+    for (size_t i = 0; i < stateNum; i++)
+      printf("\t" STATE_FORMAT ": %s\n", i, stateSet[i]);
+  #endif
 
   printf("Initializing cipher instruction array...\n");
   for (int i = 0; i < INSTRSIZE; i++) {

@@ -18,4 +18,4 @@ verif: verif.cpp turing.h
 	${CPP} verif.cpp -o verif ${CXXFLAGS} ${LDFLAGS}
 
 clean:
-	rm -f alice cloud verif *.key *.data
+	rm -f keygen alice cloud verif *.key *.data
