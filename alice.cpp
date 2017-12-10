@@ -1,5 +1,6 @@
 #include "turing.h"
 #include <stdio.h>
+#include <string.h>
 
 void setStateFromPlain(LweSample *cipher, state_t plain,
                         TFheGateBootstrappingSecretKeySet *key) {

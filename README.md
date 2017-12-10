@@ -1,6 +1,8 @@
 FHE-Turing
 ==========
 
+*This project probably doesn't work, it was an experiment in using TFHE.*
+
 A fully homomorphic Turing machine: the instructions and the initial tape are only known to the client, and the computations are entirely carried out by the server.
 
 ## Setup
